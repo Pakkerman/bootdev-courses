@@ -12,6 +12,7 @@ func main() {
 		Handler: mux,
 	}
 
+	mux.Handle("/", http.FileServer(http.Dir(".")))
 	fmt.Println("listening on port 8080")
 	s.ListenAndServe()
 }
