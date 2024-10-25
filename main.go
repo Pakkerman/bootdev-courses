@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync/atomic"
 )
+
+type apiConfig struct {
+	fileserverHits atomic.Int32
+}
 
 func main() {
 	const fsRoot = "."
@@ -12,12 +17,18 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	cfg := &apiConfig{
+		fileserverHits: atomic.Int32{},
+	}
+
 	// This will redirect .../app/ to ./index.html
 	// I think it takes the url, lcoalhost:8080/app/ and strip out the app part,
 	// and serve the second part which in thic case is ".",
 	// and by default, the index.html file
-	mux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir(fsRoot))))
+	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(fsRoot)))))
 	mux.HandleFunc("/healthz", handleReadiness)
+	mux.HandleFunc("/metrics", cfg.handleMetrics)
+	mux.HandleFunc("/reset", cfg.handleReset)
 
 	s := &http.Server{
 		Addr:    ":" + port,
@@ -28,8 +39,16 @@ func main() {
 	log.Fatal(s.ListenAndServe())
 }
 
-func handleReadiness(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg.fileserverHits.Add(1)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(http.StatusText(http.StatusOK)))
+
+	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.fileserverHits.Load())))
 }
