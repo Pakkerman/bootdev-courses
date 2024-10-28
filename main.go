@@ -26,9 +26,9 @@ func main() {
 	// and serve the second part which in thic case is ".",
 	// and by default, the index.html file
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(fsRoot)))))
-	mux.HandleFunc("GET /healthz", handleReadiness)
-	mux.HandleFunc("GET /metrics", cfg.handleMetrics)
-	mux.HandleFunc("POST /reset", cfg.handleReset)
+	mux.HandleFunc("GET /api/healthz", handleReadiness)
+	mux.HandleFunc("GET /api/metrics", cfg.handleMetrics)
+	mux.HandleFunc("POST /api/reset", cfg.handleReset)
 
 	s := &http.Server{
 		Addr:    ":" + port,
