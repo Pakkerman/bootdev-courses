@@ -27,8 +27,8 @@ func main() {
 	// and by default, the index.html file
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(fsRoot)))))
 	mux.HandleFunc("GET /api/healthz", handleReadiness)
-	mux.HandleFunc("GET /api/metrics", cfg.handleMetrics)
-	mux.HandleFunc("POST /api/reset", cfg.handleReset)
+	mux.HandleFunc("GET /admin/metrics", cfg.handleMetrics)
+	mux.HandleFunc("POST /admin/reset", cfg.handleReset)
 
 	s := &http.Server{
 		Addr:    ":" + port,
@@ -37,18 +37,4 @@ func main() {
 
 	fmt.Println("listening on port 8080")
 	log.Fatal(s.ListenAndServe())
-}
-
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.fileserverHits.Add(1)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
-	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.fileserverHits.Load())))
 }
