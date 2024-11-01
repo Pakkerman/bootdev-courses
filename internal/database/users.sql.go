@@ -31,3 +31,17 @@ func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
 	)
 	return i, err
 }
+
+const truncateUserTable = `-- name: TruncateUserTable :one
+TRUNCATE TABLE users
+`
+
+type TruncateUserTableRow struct {
+}
+
+func (q *Queries) TruncateUserTable(ctx context.Context) (TruncateUserTableRow, error) {
+	row := q.db.QueryRowContext(ctx, truncateUserTable)
+	var i TruncateUserTableRow
+	err := row.Scan()
+	return i, err
+}

@@ -7,3 +7,6 @@ VALUES (
     $1
 )
 RETURNING *;
+
+-- name: TruncateUserTable :one
+TRUNCATE TABLE users;

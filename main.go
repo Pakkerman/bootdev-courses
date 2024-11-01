@@ -2,12 +2,10 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
 
 	"github.com/joho/godotenv"
@@ -18,16 +16,18 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
+	platform       string
 }
 
 func main() {
 	godotenv.Load(".env")
 	dbURL := os.Getenv("DB_URL")
+
+	fmt.Println("DB URL", dbURL)
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		fmt.Errorf("something wrong when connecting to database: %v", err)
 		return
-
 	}
 
 	const fsRoot = "."
@@ -38,6 +38,7 @@ func main() {
 	cfg := &apiConfig{
 		fileserverHits: atomic.Int32{},
 		dbQueries:      database.New(db),
+		platform:       os.Getenv("PLATFORM"),
 	}
 
 	// This will redirect .../app/ to ./index.html
@@ -49,6 +50,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", cfg.handleMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handleReset)
 	mux.HandleFunc("POST /api/validate_chirp", handleValidate)
+	mux.HandleFunc("POST /api/users", cfg.handleUsers)
 
 	s := &http.Server{
 		Addr:    ":" + port,
@@ -57,93 +59,4 @@ func main() {
 
 	fmt.Println("listening on port 8080")
 	log.Fatal(s.ListenAndServe())
-}
-
-func handleValidate(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-
-	type responseError struct {
-		Error string `json:"error"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		w.Header().Add("Content-Type", "application/json")
-		w.WriteHeader(500)
-
-		res := responseError{
-			Error: "Something went wrong",
-		}
-
-		data, err := json.Marshal(res)
-		if err != nil {
-			log.Printf("Error with marshalling JSON: %s", err)
-		}
-
-		w.Write(data)
-		return
-	}
-
-	content := params.Body
-
-	if len(content) > 140 {
-		{
-			w.Header().Add("Content-Type", "application/json")
-			w.WriteHeader(400)
-
-			res := responseError{
-				Error: "Chirp is too long",
-			}
-
-			data, err := json.Marshal(res)
-			if err != nil {
-				log.Printf("Error with marshalling JSON: %s", err)
-			}
-
-			w.Write(data)
-			return
-		}
-	}
-
-	type responseBody struct {
-		Body string `json:"cleaned_body"`
-	}
-
-	w.Header().Add("Content-Type", "application/json")
-	res := responseBody{
-		Body: chirpFilter(content),
-	}
-
-	data, err := json.Marshal(res)
-	if err != nil {
-		log.Printf("Error with marshalling JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-	w.WriteHeader(200)
-	w.Write(data)
-}
-
-func chirpFilter(s string) string {
-	cenceredWords := []string{
-		"profane", "kerfuffle", "sharbert", "fornax",
-	}
-
-	arr := strings.Split(strings.ToLower(s), " ")
-
-	for i := 0; i < len(arr); i++ {
-		for k := 0; k < len(cenceredWords); k++ {
-			if arr[i] == cenceredWords[k] {
-				arr[i] = "****"
-			}
-		}
-	}
-
-	fmt.Println(arr)
-
-	return "1"
 }
